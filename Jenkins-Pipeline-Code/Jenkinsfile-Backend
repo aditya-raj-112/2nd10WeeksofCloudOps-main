@@ -18,7 +18,7 @@ pipeline {
                     dir('client') {
                         sh 'docker system prune -f'
                         sh 'docker container prune -f'
-                        sh 'docker build -t frontend .'
+                        sh 'docker build -t backend .'
                     }
                 }
             }
@@ -28,8 +28,8 @@ pipeline {
                 script {
                     sh '''
                     aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 545009827818.dkr.ecr.ap-south-1.amazonaws.com
-                    docker tag frontend:latest 545009827818.dkr.ecr.ap-south-1.amazonaws.com/frontend:${BUILD_NUMBER}
-                    docker push 545009827818.dkr.ecr.ap-south-1.amazonaws.com/frontend:${BUILD_NUMBER}
+                    docker tag backend:latest 545009827818.dkr.ecr.ap-south-1.amazonaws.com/backend:${BUILD_NUMBER}
+                    docker push 545009827818.dkr.ecr.ap-south-1.amazonaws.com/backend:${BUILD_NUMBER}
                     '''
                 }
             }
@@ -47,7 +47,7 @@ pipeline {
                             git config user.name "aditya-raj-112"
                             BUILD_NUMBER=${BUILD_NUMBER}
                             echo $BUILD_NUMBER
-                            sed -i "s#image:.*#image: 545009827818.dkr.ecr.ap-south-1.amazonaws.com/frontend:$BUILD_NUMBER#g" frontend-deploy-service.yaml
+                            sed -i "s#image:.*#image: 545009827818.dkr.ecr.ap-south-1.amazonaws.com/backend:$BUILD_NUMBER#g" backend-deploy-service.yaml
                             git add .
                             git commit -m "Update deployment Image to version \${BUILD_NUMBER}"
                             git push https://${git_token}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
