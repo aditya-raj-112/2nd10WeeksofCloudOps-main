@@ -1,98 +1,57 @@
 pipeline {
     agent any 
 
-    environment {
-        SCANNER_HOME = tool 'sonar-scanner'
-        AWS_ACCOUNT_ID = '351001051745'   // Put your AWS account ID here
-        AWS_ECR_REPO_NAME = 'backend'     // Your repo name in ECR
-        AWS_DEFAULT_REGION = 'us-east-1'
-        REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${AWS_ECR_REPO_NAME}"
-    }
-
     stages {
         stage('Cleaning Workspace') {
             steps {
                 cleanWs()
             }
         }
-
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/CloudTechDevOps/2nd10WeeksofCloudOps-main.git'
+                git branch: 'main', url: 'https://github.com/aditya-raj-112/2nd10WeeksofCloudOps-main.git'
             }
         }
-
-        stage('Sonarqube Analysis') {
+        stage("Docker Image Build") {
             steps {
-                dir('backend') {
-                    withSonarQubeEnv('sonar-server') {
-                        sh '''
-                          $SCANNER_HOME/bin/sonar-scanner \
-                          -Dsonar.projectName=three-tier-backend \
-                          -Dsonar.projectKey=three-tier-backend
-                        '''
+                script {
+                    dir('client') {
+                        sh 'docker system prune -f'
+                        sh 'docker container prune -f'
+                        sh 'docker build -t frontend .'
                     }
                 }
             }
         }
-
-        stage('Quality Check') {
-            steps {
-                script {
-                    waitForQualityGate abortPipeline: true, credentialsId: 'sonar-token'
-                }
-            }
-        }
-
-        stage('Trivy File Scan') {
-            steps {
-                dir('backend') {
-                    sh 'trivy fs . > trivyfs.txt'
-                }
-            }
-        }
-
-        stage("Docker Image Build") {
-            steps {
-                dir('backend') {
-                    sh 'docker system prune -f'
-                    sh 'docker container prune -f'
-                    sh "docker build -t ${AWS_ECR_REPO_NAME}:latest ."
-                }
-            }
-        }
-
         stage("ECR Image Pushing") {
             steps {
                 script {
-                        sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 351001051745.dkr.ecr.us-east-1.amazonaws.com ${REPOSITORY_URI}'
-                        sh 'docker tag backend:latest 351001051745.dkr.ecr.us-east-1.amazonaws.com/backend:${BUILD_NUMBER}'
-                        sh 'docker push 351001051745.dkr.ecr.us-east-1.amazonaws.com/backend:${BUILD_NUMBER}'
+                    sh '''
+                    aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 545009827818.dkr.ecr.ap-south-1.amazonaws.com
+                    docker tag frontend:latest 545009827818.dkr.ecr.ap-south-1.amazonaws.com/frontend:${BUILD_NUMBER}
+                    docker push 545009827818.dkr.ecr.ap-south-1.amazonaws.com/frontend:${BUILD_NUMBER}
+                    '''
                 }
             }
         }
-
-        stage("TRIVY Image Scan") {
-            steps {
-                sh "trivy image ${REPOSITORY_URI}:${BUILD_NUMBER} > trivyimage.txt"
-            }
-        }
-
         stage('Update Deployment file') {
             environment {
                 GIT_REPO_NAME = "2nd10WeeksofCloudOps-main"
-                GIT_USER_NAME = "CloudTechDevOps"
+                GIT_USER_NAME = "aditya-raj-112"
             }
             steps {
                 dir('kubernetes-files') {
                     withCredentials([string(credentialsId: 'my-git-pattoken', variable: 'git_token')]) {
                         sh '''
-                            git config user.email "cloud87777@gmail.com"
-                            git config user.name "CloudTechDevOps"
-                            sed -i "s#image:.*#image: ${REPOSITORY_URI}:${BUILD_NUMBER}#g" backend-deployment.yaml
+                            git config user.email "braininsight9@gmail.com"
+                            git config user.name "aditya-raj-112"
+                            BUILD_NUMBER=${BUILD_NUMBER}
+                            echo $BUILD_NUMBER
+                            sed -i "s#image:.*#image: 545009827818.dkr.ecr.ap-south-1.amazonaws.com/frontend:$BUILD_NUMBER#g" frontend-deploy-service.yaml
                             git add .
-                            git commit -m "Update deployment Image to version ${BUILD_NUMBER}"
+                            git commit -m "Update deployment Image to version \${BUILD_NUMBER}"
                             git push https://${git_token}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+        
                         '''
                     }
                 }
